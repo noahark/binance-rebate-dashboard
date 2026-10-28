@@ -1,0 +1,156 @@
+openapi: 3.0.2
+info:
+  title: Rebate REST API
+  description: 查询现货交易返佣历史记录。
+  version: 1.0.0
+  termsOfService: https://www.binance.com/en/terms
+  contact:
+    name: Binance API Support
+    url: https://www.binance.com/en/support
+x-product-type: rest-api
+x-untagged-label: true
+x-rate-limits-guide: products/rebate/general-info#访问限制
+x-security-guide: products/rebate/general-info#请求鉴权类型
+x-api-key-guide: https://www.binance.com/cn/support/faq/detail/360002502072
+externalDocs:
+  description: Rebate docs
+  url: https://developers.binance.com/en/docs/products/rebate/Introduction
+servers:
+  - url: https://api.binance.com
+  - url: https://api-gcp.binance.com
+  - url: https://api1.binance.com
+  - url: https://api2.binance.com
+  - url: https://api3.binance.com
+  - url: https://api4.binance.com
+paths:
+  /sapi/v1/rebate/taxQuery:
+    get:
+      summary: 获取现货返佣历史记录 (USER_DATA)
+      description: 获取现货返佣历史记录
+      operationId: getSpotRebateHistoryRecords
+      externalDocs:
+        url: https://developers.binance.com/en/docs/catalog/investment-and-services-rebate/api/rest-api/~#get-spot-rebate-history-records
+      x-connectors-examples:
+        ts: https://raw.githubusercontent.com/binance/binance-connector-js/master/clients/rebate/examples/rest-api/RebateApi/getSpotRebateHistoryRecords.ts
+        rust: https://raw.githubusercontent.com/binance/binance-connector-rust/main/examples/rebate/rest_api/rebate_api/get_spot_rebate_history_records.rs
+        python: https://raw.githubusercontent.com/binance/binance-connector-python/master/clients/rebate/examples/rest_api/Rebate/get_spot_rebate_history_records.py
+        java: https://raw.githubusercontent.com/binance/binance-connector-java/master/examples/rebate/src/main/java/com/binance/connector/client/rebate/rest/rebate/GetSpotRebateHistoryRecordsExample.java
+        go: https://raw.githubusercontent.com/binance/binance-connector-go/main/clients/rebate/examples/restapi/RebateAPI/GetSpotRebateHistoryRecords/GetSpotRebateHistoryRecords.go
+        php: https://raw.githubusercontent.com/binance/binance-connector-php/master/examples/rebate/rebate/GetSpotRebateHistoryRecordsExample.php
+      x-security-type: USER_DATA
+      x-signed: true
+      x-uid-weight: 12000
+      parameters:
+        - name: X-MBX-APIKEY
+          in: header
+          required: true
+          description: 访问此接口需要 API Key，并且必须在请求头中携带。关于如何创建 API Key，请参考：[https://www.binance.com/cn/support/faq/detail/360002502072](https://www.binance.com/cn/support/faq/detail/360002502072)。
+          schema:
+            type: string
+            example: API_KEY
+        - name: startTime
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1623319461670
+            format: int64
+          description: 开始时间戳（毫秒）。
+        - name: endTime
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1641782889000
+            format: int64
+          description: 结束时间戳（毫秒）。
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 1
+            format: int64
+            default: 1
+          description: 页码。
+        - name: recvWindow
+          in: query
+          required: false
+          schema:
+            type: integer
+            example: 5000
+            format: int64
+            maximum: 60000
+          description: 请求有效时间窗口，单位为毫秒。
+        - name: timestamp
+          in: query
+          required: true
+          schema:
+            type: integer
+            example: 1770736694138
+            format: int64
+          description: 用于请求签名的 Unix 时间戳，单位为毫秒. 该值必须反映客户端当前时间，并会在签名接口中由服务器进行校验.
+      x-parameters-notes: |-
+        - `startTime` 和 `endTime` 的最大时间间隔为 30 天。
+        - 若 `startTime` 和 `endTime` 均未发送，只返回最近 7 天数据。
+        - 查询时间最早支持 2020 年 6 月 10 日。
+        - 每次最多返回 200 条记录。
+      responses:
+        '200':
+          description: 获取现货返佣历史记录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: OK
+                  type:
+                    type: string
+                    example: GENERAL
+                  code:
+                    type: string
+                    example: '000000000'
+                  data:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                        format: int64
+                        description: 当前页码。
+                      totalRecords:
+                        type: integer
+                        example: 2
+                        format: int64
+                        description: 总记录数。
+                      totalPageNum:
+                        type: integer
+                        example: 1
+                        format: int64
+                        description: 总页数。
+                      data:
+                        type: array
+                        description: 返佣记录列表。
+                        items:
+                          type: object
+                          properties:
+                            asset:
+                              type: string
+                              example: USDT
+                              description: 返佣资产。
+                            type:
+                              type: integer
+                              example: 1
+                              format: int64
+                              description: 返佣类型：1为推荐人返佣，2为被推荐人返现
+                            amount:
+                              type: string
+                              example: '0.0001126'
+                              description: 返佣金额。
+                            updateTime:
+                              type: integer
+                              example: 1637651320000
+                              format: int64
+                              description: 更新时间戳。

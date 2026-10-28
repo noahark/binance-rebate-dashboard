@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>客户返佣看板 · AOKE</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="insights.css">
+</head>
+<body>
+<aside class="sidebar">
+    <a class="brand" href="#overview"><span class="brandmark">A</span><span>AOKE<span class="brand-sub">PARTNER WORKSPACE</span></span></a>
+    <div class="workspace"><span class="workspace-icon">N</span><span>Noah 的工作空间<small>联盟合作伙伴</small></span><span class="chevron">⌄</span></div>
+    <div class="nav-label">工作台</div>
+    <nav>
+        <button data-page="overview" class="active"><span>◫</span>返佣总览</button>
+        <button data-page="customers"><span>♧</span>客户中心</button>
+        <button data-page="followups"><span>⚑</span>唤醒与关怀</button>
+        <button data-page="imports"><span>⇩</span>数据导入与同步</button>
+        <div class="nav-label analytics-label">分析与复盘</div>
+        <button data-page="dynamics"><span>⇄</span>客户动态</button>
+        <button data-page="earnings"><span>◈</span>客户参与与激活</button>
+    </nav>
+    <div class="sidebar-bottom">
+        <div class="local-status"><span></span>本地已连接服务</div>
+        <p>从数据变化，到每一次有效沟通。</p>
+        <div class="profile"><span class="avatar">N</span><div>Noah Ark<small>工作空间管理员</small></div><span>⌘</span></div>
+    </div>
+</aside>
+<div class="shell">
+    <header>
+        <div class="breadcrumb">工作台 <span>/</span> <b id="crumb">返佣总览</b></div>
+        <div class="header-right">
+            <span class="demo-pill">本地真实服务 · SQLite 缓存</span>
+            <span class="avatar small">N</span>
+        </div>
+    </header>
+    <main>
+        <section class="page-heading">
+            <div>
+                <div class="eyebrow">UNDERSTAND YOUR CUSTOMERS</div>
+                <h1 id="pageTitle">返佣总览</h1>
+                <p id="pageSubtitle">汇总客户返佣，了解真实行为变化，找到联系与激活的时机。</p>
+            </div>
+        </section>
+        <div class="filters">
+            <div class="periods" id="periods">
+                <button data-days="7">近 7 天</button>
+                <button data-days="15" class="selected">近 15 天</button>
+                <button data-days="30">近 30 天</button>
+                <button data-days="90">近 3 个月</button>
+                <button data-days="180">近半年</button>
+                <button data-days="365">近一年</button>
+            </div>
+            <div class="filter-right">
+                <button id="toggleMaskBtn" class="mask-toggle-btn" type="button" title="点击隐藏/显示金额与客户敏感信息">
+                    <span class="mask-icon">👁</span>
+                    <span class="mask-text">隐藏敏感信息</span>
+                </button>
+                <span id="dateLabel" class="date-chip">2026.10.01 — 10.15</span>
+            </div>
+        </div>
+        <div id="pageContent"></div>
+        <footer>
+            <span><i class="status-dot"></i>本地数据库缓存 · 统计基准 2026-10-15 (UTC)</span>
+            <span>金额来源于官方底层 API（计价单位：USDT）</span>
+        </footer>
+    </main>
+</div>
+<div id="overlay" class="overlay" hidden></div>
+<aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" hidden></aside>
+<dialog id="careModal" class="care-dialog"></dialog>
+<dialog id="rulesModal" class="care-dialog"></dialog>
+<div id="toast" role="status" class="toast" hidden></div>
+<script src="app.js"></script>
+<script src="insights.js"></script>
+</body>
+</html>

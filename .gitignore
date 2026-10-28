@@ -1,0 +1,27 @@
+# 凭证与密钥
+.env
+config/
+
+# 本地数据(真实客户数据,永不上传)
+data/
+*.csv
+*.xlsm
+*.xlsx
+
+# 运行残留
+*.log
+server.pid
+logs/
+.pytest_cache/
+
+# 环境与系统
+.venv/
+__pycache__/
+.DS_Store
+node_modules/
+
+# 本地私人物料(不进开源仓库)
+reports/
+HERDR.md
+PPT_MATERIAL.md
+Binance_Affiliate_Performance_API_Bilingual.html
