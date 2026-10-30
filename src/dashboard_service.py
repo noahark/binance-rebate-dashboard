@@ -44,14 +44,19 @@ def parse_customer_datetime(val: Any) -> Optional[dt.datetime]:
     return None
 
 
-def compute_period_bounds(days: int = 15, reference_end: Optional[str] = "2026-10-15") -> Tuple[str, str, str, str]:
+def get_default_reference_end() -> str:
+    """Return yesterday in UTC as YYYY-MM-DD string (the latest complete UTC date)."""
+    yesterday = dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=1)
+    return yesterday.isoformat()
+
+
+def compute_period_bounds(days: int = 15, reference_end: Optional[str] = None) -> Tuple[str, str, str, str]:
     """Compute current and previous closed-interval date bounds [start, end].
     Returns (curr_start, curr_end, prev_start, prev_end).
     """
-    if not reference_end:
-        end_d = dt.date(2026, 10, 15)
-    else:
-        end_d = parse_date(reference_end)
+    if not isinstance(reference_end, str) or not reference_end:
+        reference_end = get_default_reference_end()
+    end_d = parse_date(reference_end)
 
     # Closed interval of 'days' count: curr_start is end_d - (days - 1)
     curr_start_d = end_d - dt.timedelta(days=days - 1)
@@ -73,9 +78,10 @@ class DashboardService:
         self,
         days: int = 15,
         exclude_top: int = 0,
-        reference_end: str = "2026-10-15",
+        reference_end: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Aggregate overview metrics and linked trends."""
+        reference_end = reference_end or get_default_reference_end()
         curr_start, curr_end, prev_start, prev_end = compute_period_bounds(days, reference_end)
 
         conn = get_db()
@@ -269,7 +275,9 @@ class DashboardService:
                 "current_end": curr_end,
                 "previous_start": prev_start,
                 "previous_end": prev_end,
-                "label": f"{curr_start.replace('-', '.')} — {curr_end[5:].replace('-', '.')}",
+                "curr_range": [curr_start, curr_end],
+                "prev_range": [prev_start, prev_end],
+                "label": f"{curr_start} ~ {curr_end}",
             },
             "coverage": {
                 "total_customers": total_customers,
@@ -327,9 +335,10 @@ class DashboardService:
         tab: str = "all",
         search: str = "",
         sort_by: str = "commission",
-        reference_end: str = "2026-10-15",
+        reference_end: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Fetch customer list with period metrics, star flags, search and sort."""
+        reference_end = reference_end or get_default_reference_end()
         curr_start, curr_end, prev_start, prev_end = compute_period_bounds(days, reference_end)
 
         conn = get_db()
@@ -479,6 +488,11 @@ class DashboardService:
                 "days": days,
                 "start_date": curr_start,
                 "end_date": curr_end,
+                "current_start": curr_start,
+                "current_end": curr_end,
+                "curr_range": [curr_start, curr_end],
+                "prev_range": [prev_start, prev_end],
+                "label": f"{curr_start} ~ {curr_end}",
             },
             "tab": tab,
             "coverage": coverage,
@@ -486,8 +500,9 @@ class DashboardService:
             "customers": results,
         }
 
-    def get_customer_detail(self, user_id: str, days: int = 15, reference_end: str = "2026-10-15") -> Optional[Dict[str, Any]]:
+    def get_customer_detail(self, user_id: str, days: int = 15, reference_end: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get full details of a single customer."""
+        reference_end = reference_end or get_default_reference_end()
         curr_start, curr_end, prev_start, prev_end = compute_period_bounds(days, reference_end)
 
         conn = get_db()
@@ -599,9 +614,10 @@ class DashboardService:
     def get_care_dashboard(
         self,
         days: int = 15,
-        reference_end: str = "2026-10-15",
+        reference_end: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Fetch unified care & re-engagement dashboard data (workbench, channels, review)."""
+        reference_end = reference_end or get_default_reference_end()
         curr_start, curr_end, prev_start, prev_end = compute_period_bounds(days, reference_end)
 
         conn = get_db()
@@ -761,7 +777,8 @@ class DashboardService:
             if is_missing:
                 status = "数据待补齐"
             else:
-                is_newstar = (reg_str >= "2026-08-15" or trade_str >= "2026-08-15" or (c["tags"] and "新星" in c["tags"]))
+                newstar_cutoff = format_date(parse_date(reference_end) - dt.timedelta(days=61))
+                is_newstar = (reg_str >= newstar_cutoff or trade_str >= newstar_cutoff or (c["tags"] and "新星" in c["tags"]))
                 if is_newstar:
                     status = "新星"
                 elif (delta_pct is not None and delta_pct <= -80.0) or (comm == 0.0 and all_time_comm >= 50.0):
@@ -874,7 +891,9 @@ class DashboardService:
                 "current_end": curr_end,
                 "previous_start": prev_start,
                 "previous_end": prev_end,
-                "label": f"{curr_start} — {curr_end}",
+                "curr_range": [curr_start, curr_end],
+                "prev_range": [prev_start, prev_end],
+                "label": f"{curr_start} ~ {curr_end}",
             },
             "summary": {
                 "total_customers": len(customer_list),
@@ -929,8 +948,9 @@ class DashboardService:
         conn.close()
         return bool(new_val)
 
-    def get_insights(self, days: int = 15, reference_end: str = "2026-10-15") -> Dict[str, Any]:
+    def get_insights(self, days: int = 15, reference_end: Optional[str] = None) -> Dict[str, Any]:
         """Fetch care signals, independent activation milestones, and referral code performance."""
+        reference_end = reference_end or get_default_reference_end()
         curr_start, curr_end, prev_start, prev_end = compute_period_bounds(days, reference_end)
 
         conn = get_db()
@@ -1048,7 +1068,9 @@ class DashboardService:
                 "days": days,
                 "current_start": curr_start,
                 "current_end": curr_end,
-                "label": f"{curr_start.replace('-', '.')} — {curr_end[5:].replace('-', '.')}",
+                "curr_range": [curr_start, curr_end],
+                "prev_range": [prev_start, prev_end],
+                "label": f"{curr_start} ~ {curr_end}",
             },
             "activations": {
                 "registered": period_reg_count,

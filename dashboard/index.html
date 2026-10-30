@@ -31,6 +31,7 @@
     <header>
         <div class="breadcrumb">工作台 <span>/</span> <b id="crumb">返佣总览</b></div>
         <div class="header-right">
+            <a href="https://x.com/aoke_quant" target="_blank" rel="noopener noreferrer" class="brand-watermark" title="Author handle on X">@aoke_quant</a>
             <span class="demo-pill">本地真实服务 · SQLite 缓存</span>
             <span class="avatar small">N</span>
         </div>
@@ -57,12 +58,16 @@
                     <span class="mask-icon">👁</span>
                     <span class="mask-text">隐藏敏感信息</span>
                 </button>
-                <span id="dateLabel" class="date-chip">2026.10.01 — 10.15</span>
+                <div class="ref-date-picker">
+                    <label for="referenceEndDateInput" class="ref-date-label">基准日 (UTC):</label>
+                    <input type="date" id="referenceEndDateInput" class="date-input" title="选择统计截止日期（默认 UTC 昨日）">
+                </div>
+                <span id="dateLabel" class="date-chip"></span>
             </div>
         </div>
         <div id="pageContent"></div>
         <footer>
-            <span><i class="status-dot"></i>本地数据库缓存 · 统计基准 2026-10-15 (UTC)</span>
+            <span><i class="status-dot"></i>本地数据库缓存 · 统计基准 <span id="footerReferenceDate"></span> (UTC)</span>
             <span>金额来源于官方底层 API（计价单位：USDT）</span>
         </footer>
     </main>

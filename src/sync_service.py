@@ -21,25 +21,60 @@ from database import format_decimal, get_db, metric_is_complete
 logger = logging.getLogger("sync_service")
 
 
+PLACEHOLDER_CREDENTIALS = {
+    "your_binance_api_key_here",
+    "your_binance_api_secret_here",
+    "your_api_key_here",
+    "your_api_secret_here",
+    "your_key_here",
+    "your_secret_here",
+    "xxx",
+    "none",
+    "null",
+}
+
+
+def is_valid_credential(val: Optional[str]) -> bool:
+    """Check if credential string is non-empty and not a placeholder."""
+    if not val:
+        return False
+    s = str(val).strip().strip('"').strip("'")
+    if not s:
+        return False
+    if s.lower() in PLACEHOLDER_CREDENTIALS:
+        return False
+    if s.startswith("<") and s.endswith(">"):
+        return False
+    return True
+
+
 def get_binance_client() -> Optional[BinanceClient]:
     """Instantiate BinanceClient from environment or .env file."""
     bk_key = os.environ.get("BK_KEY", "")
     bk_sec = os.environ.get("BK_SEC", "")
+
+    # Disregard env vars if they are placeholder values
+    if not is_valid_credential(bk_key):
+        bk_key = ""
+    if not is_valid_credential(bk_sec):
+        bk_sec = ""
+
     if not bk_key or not bk_sec:
         # Try loading .env
         env_path = os.path.join(ROOT_DIR, ".env")
         if os.path.exists(env_path):
-            with open(env_path) as f:
+            with open(env_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line and not line.startswith("#") and "=" in line:
                         k, v = line.split("=", 1)
                         k, v = k.strip(), v.strip().strip('"').strip("'")
-                        if k == "BK_KEY" and not bk_key:
+                        if k == "BK_KEY" and not bk_key and is_valid_credential(v):
                             bk_key = v
-                        elif k == "BK_SEC" and not bk_sec:
+                        elif k == "BK_SEC" and not bk_sec and is_valid_credential(v):
                             bk_sec = v
-    if not bk_key or not bk_sec:
+
+    if not is_valid_credential(bk_key) or not is_valid_credential(bk_sec):
         return None
     return BinanceClient(bk_key, bk_sec)
 

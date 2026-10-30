@@ -32,3 +32,48 @@
     font-size: 13px;
     line-height: 1;
 }
+
+.brand-watermark {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: #8590a2;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: #f4f5f8;
+    border: 1px solid #e2e6eb;
+    letter-spacing: 0.3px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+.brand-watermark:hover {
+    color: #3b4453;
+    border-color: #cbd3dc;
+    background: #edf0f4;
+}
+
+.ref-date-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #657080;
+}
+.ref-date-picker .ref-date-label {
+    font-size: 11px;
+    color: #8590a2;
+}
+.ref-date-picker .date-input {
+    padding: 4px 8px;
+    border: 1px solid #dcdfe4;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 12px;
+    color: #303744;
+}
+.date-chip {
+    font-size: 11px;
+    color: #8590a2;
+}

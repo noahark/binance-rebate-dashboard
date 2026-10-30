@@ -72,6 +72,46 @@ const money = (n, digits = 2) => {
 };
 const escapeHtml = s => String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+function getUtcYesterday() {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+}
+
+function computePeriodBoundsUtc(days, referenceEnd) {
+    const refStr = referenceEnd || getUtcYesterday();
+    const parts = refStr.split('-').map(Number);
+    const end = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    const start = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    start.setUTCDate(start.getUTCDate() - (days - 1));
+
+    const toIso = dt => dt.toISOString().slice(0, 10);
+    const currStart = toIso(start);
+    const currEnd = toIso(end);
+
+    return {
+        days: days,
+        currStart,
+        currEnd,
+        label: `${currStart} ~ ${currEnd}`,
+    };
+}
+
+function getCurrentPagePeriod() {
+    switch (state.page) {
+        case 'overview':
+            return cache.overview?.period || null;
+        case 'customers':
+            return cache.customers?.period || null;
+        case 'followups':
+            return cache.care?.period || null;
+        case 'earnings':
+            return cache.insights?.period || null;
+        default:
+            return null;
+    }
+}
+
 let state = {
     page: 'overview',
     days: 15,
@@ -80,7 +120,7 @@ let state = {
     search: '',
     sort: 'commission',
     excludeTop: 0,
-    referenceEnd: '2026-10-15',
+    referenceEnd: getUtcYesterday(),
     hideSensitive: localStorage.getItem('hideSensitive') === '1',
 };
 
@@ -1102,19 +1142,30 @@ async function render() {
     }
 
     if ($('#dateLabel')) {
-        if (state.page === 'followups' && cache.care?.period) {
-            $('#dateLabel').textContent = `${cache.care.period.label} · 对比前 ${state.days} 天`;
-        } else if (state.page === 'earnings' && cache.insights?.period) {
-            $('#dateLabel').textContent = cache.insights.period.label;
-        } else if (cache.overview?.period) {
-            $('#dateLabel').textContent = cache.overview.period.label;
+        const computed = computePeriodBoundsUtc(state.days, state.referenceEnd);
+        const pagePeriod = getCurrentPagePeriod();
+        const baseLabel = (pagePeriod && pagePeriod.label) ? pagePeriod.label : computed.label;
+        if (state.page === 'followups') {
+            $('#dateLabel').textContent = `${baseLabel} · 对比前 ${state.days} 天`;
+        } else {
+            $('#dateLabel').textContent = baseLabel;
         }
+    }
+
+    const dateInput = $('#referenceEndDateInput');
+    if (dateInput && dateInput.value !== state.referenceEnd) {
+        dateInput.value = state.referenceEnd;
+    }
+    const footerRef = $('#footerReferenceDate');
+    if (footerRef) {
+        footerRef.textContent = state.referenceEnd;
     }
 
     document.querySelectorAll('nav [data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === state.page));
     document.querySelectorAll('[data-days]').forEach(b => b.classList.toggle('selected', +b.dataset.days === state.days));
-    if ($('#periods')) $('#periods').hidden = (state.page === 'imports');
-    if ($('#dateLabel')) $('#dateLabel').hidden = (state.page === 'imports');
+    const isTimeFilterApplicable = (state.page !== 'imports' && state.page !== 'dynamics');
+    if ($('#periods')) $('#periods').hidden = !isTimeFilterApplicable;
+    if ($('#dateLabel')) $('#dateLabel').hidden = !isTimeFilterApplicable;
 
     const maskBtn = $('#toggleMaskBtn');
     if (maskBtn) {
@@ -1660,7 +1711,7 @@ document.addEventListener('click', async e => {
     }
 
     if (b.id === 'updateCsvBtn' || b.id === 'importDefaultsBtn') {
-        const res = await api('/api/dashboard/imports/update_csv', { method: 'POST' });
+        const res = await api(`/api/dashboard/imports/update_csv?reference_end=${encodeURIComponent(state.referenceEnd)}`, { method: 'POST' });
         if (res) {
             toast(res.message);
             if (res.auto_sync_job_id) {
@@ -1674,7 +1725,7 @@ document.addEventListener('click', async e => {
     if (b.id === 'sync90DaysBtn') {
         const res = await api('/api/dashboard/sync/start', {
             method: 'POST',
-            body: JSON.stringify({ scope: 'all', days: 90, granularity: 'period' }),
+            body: JSON.stringify({ scope: 'all', days: 90, reference_end: state.referenceEnd, granularity: 'period' }),
         });
         if (res) {
             toast(`已启动近 3 个月 (90天) 全员数据同步 (任务ID: ${res.job_id})`);
@@ -1685,7 +1736,7 @@ document.addEventListener('click', async e => {
     if (b.id === 'startDailySync7') {
         const res = await api('/api/dashboard/sync/start', {
             method: 'POST',
-            body: JSON.stringify({ scope: 'all', days: 7, granularity: 'daily' }),
+            body: JSON.stringify({ scope: 'all', days: 7, reference_end: state.referenceEnd, granularity: 'daily' }),
         });
         if (res) {
             toast(res.message || `已启动近 7 天日级时序回补 (任务ID: ${res.job_id})`);
@@ -1696,7 +1747,7 @@ document.addEventListener('click', async e => {
     if (b.id === 'startDailySync' || b.id === 'startDailySync30') {
         const res = await api('/api/dashboard/sync/start', {
             method: 'POST',
-            body: JSON.stringify({ scope: 'all', days: 30, granularity: 'daily' }),
+            body: JSON.stringify({ scope: 'all', days: 30, reference_end: state.referenceEnd, granularity: 'daily' }),
         });
         if (res) {
             toast(res.message || `已启动近 30 天日级时序回补 (任务ID: ${res.job_id})`);
@@ -1707,7 +1758,7 @@ document.addEventListener('click', async e => {
     if (b.id === 'startDailySync90') {
         const res = await api('/api/dashboard/sync/start', {
             method: 'POST',
-            body: JSON.stringify({ scope: 'all', days: 90, granularity: 'daily' }),
+            body: JSON.stringify({ scope: 'all', days: 90, reference_end: state.referenceEnd, granularity: 'daily' }),
         });
         if (res) {
             toast(res.message || `已启动近 3 个月 (90天) 日级时序回补 (任务ID: ${res.job_id})`);
@@ -1718,7 +1769,7 @@ document.addEventListener('click', async e => {
     if (b.id === 'syncHalfYearBtn' || b.id === 'syncHalfYearDailyBtn') {
         const res = await api('/api/dashboard/sync/start', {
             method: 'POST',
-            body: JSON.stringify({ scope: 'all', days: 180, granularity: 'daily' }),
+            body: JSON.stringify({ scope: 'all', days: 180, reference_end: state.referenceEnd, granularity: 'daily' }),
         });
         if (res) {
             toast(res.message || `已启动近半年 (180天) 日级时序回补 (任务ID: ${res.job_id})`);
@@ -1729,7 +1780,7 @@ document.addEventListener('click', async e => {
     if (b.id === 'syncOneYearBtn' || b.id === 'syncOneYearDailyBtn') {
         const res = await api('/api/dashboard/sync/start', {
             method: 'POST',
-            body: JSON.stringify({ scope: 'all', days: 365, granularity: 'daily' }),
+            body: JSON.stringify({ scope: 'all', days: 365, reference_end: state.referenceEnd, granularity: 'daily' }),
         });
         if (res) {
             toast(res.message || `已启动近一年 (365天) 日级时序回补 (任务ID: ${res.job_id})`);
@@ -1741,7 +1792,7 @@ document.addEventListener('click', async e => {
         const targetDays = b.dataset.days ? +b.dataset.days : state.days;
         const res = await api('/api/dashboard/sync/start', {
             method: 'POST',
-            body: JSON.stringify({ scope: 'all', days: targetDays, granularity: 'daily' }),
+            body: JSON.stringify({ scope: 'all', days: targetDays, reference_end: state.referenceEnd, granularity: 'daily' }),
         });
         if (res) {
             toast(res.message || `已启动近 ${targetDays} 天日级时序回补 (任务ID: ${res.job_id})`);
@@ -1779,7 +1830,11 @@ async function pollSyncStatus() {
 }
 
 document.addEventListener('change', async e => {
-    if (e.target.id === 'sort') {
+    if (e.target.id === 'referenceEndDateInput') {
+        state.referenceEnd = e.target.value || getUtcYesterday();
+        await reloadCurrentPageData();
+        await render();
+    } else if (e.target.id === 'sort') {
         state.sort = e.target.value;
         await reloadCurrentPageData();
         await render();
@@ -1828,7 +1883,7 @@ async function handleCsvUpload(file) {
     const formData = new FormData();
     formData.append('file', file);
     try {
-        const resp = await fetch('/api/dashboard/imports/upload', {
+        const resp = await fetch(`/api/dashboard/imports/upload?reference_end=${encodeURIComponent(state.referenceEnd)}`, {
             method: 'POST',
             body: formData,
         });
