@@ -4,7 +4,6 @@ Computes metrics, periods, trends, customer profiles, followups, and activations
 
 from decimal import Decimal
 import datetime as dt
-import json
 import os
 import sys
 from typing import Any, Dict, List, Optional, Tuple

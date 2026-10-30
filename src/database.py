@@ -3,10 +3,9 @@ Uses SQLite with Decimal-safe string storage for financial values.
 """
 
 from decimal import Decimal, ROUND_HALF_UP
-import json
 import os
 import sqlite3
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(ROOT_DIR, "data", "rebate_dashboard.db")
@@ -180,11 +179,6 @@ def init_db(db_path: str = DB_PATH) -> None:
     conn.close()
 
 
-if __name__ == "__main__":
-    init_db()
-    print("Database initialized at", DB_PATH)
-
-
 def metric_is_complete(row) -> bool:
     """Legacy sliced totals may have silently omitted failed slices."""
     if not row or row["status"] not in ("success", "empty_zero"):
@@ -192,3 +186,8 @@ def metric_is_complete(row) -> bool:
     if row["commission"] is None or row["trade_vol"] is None:
         return False
     return not (row["normalization_reason"] or "").startswith("sliced_aggregation_")
+
+
+if __name__ == "__main__":
+    init_db()
+    print("Database initialized at", DB_PATH)

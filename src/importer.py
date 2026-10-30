@@ -1,15 +1,14 @@
-"""Importer for Binance CSV exports and BAPI JSON snapshots.
+"""Importer for Binance rebate CSV exports.
 Handles streaming parsing, deduplication, safe note merges, and subaccount links.
 """
 
 import csv
 import datetime as dt
 import hashlib
-import json
 import os
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from database import format_decimal, get_db, ROOT_DIR
+from database import get_db, ROOT_DIR
 
 
 def compute_file_sha256(filepath: str) -> str:
@@ -52,7 +51,7 @@ def import_csv_file(filepath: str, batch_id: Optional[str] = None) -> Dict[str, 
         }
 
     if not batch_id:
-        batch_id = f"batch-csv-{dt.datetime.now():%Y%m%d%H%M%S}"
+        batch_id = f"batch-csv-{dt.datetime.now():%Y%m%d%H%M%S%f}"
 
     # Streaming read
     total_rows = 0
@@ -301,7 +300,7 @@ def update_csv_and_detect_new_uids(directory: str = ROOT_DIR) -> Dict[str, Any]:
             pass
 
     # Record import batch
-    batch_id = f"batch-update-{dt.datetime.now():%Y%m%d%H%M%S}"
+    batch_id = f"batch-update-{dt.datetime.now():%Y%m%d%H%M%S%f}"
     summary_text = (
         f"更新 CSV 完成：解析 {total_rows} 行数据，覆盖 {len(all_found_uids)} 个 UID "
         f"(新增 {len(new_uids)} 人，已建档 {len(updated_uids)} 人)，绑定 {len(parent_sub_pairs)} 个子账户。"

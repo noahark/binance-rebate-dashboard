@@ -3,13 +3,12 @@ Provides REST APIs for overview, customers, followups, insights, dynamics, impor
 """
 
 import datetime as dt
-import logging
 import os
 import sys
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request, UploadFile, File
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,10 +18,8 @@ import requests
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(ROOT_DIR, "src"))
 
-from binance_client import BinanceClient
 from database import get_db, init_db, metric_is_complete
 from dashboard_service import dashboard_service
-from importer import import_csv_file
 from sync_service import get_binance_client, sync_manager
 
 # Ensure DB initialized on module load
@@ -215,7 +212,7 @@ def update_csv_action(auto_sync_3m: bool = Query(True, description="是否自动
                 (curr_7_s, curr_7_e, False),
                 (prev_7_s, prev_7_e, False),
             ]
-            auto_job_id = f"auto-3m-{dt.datetime.now():%Y%m%d%H%M%S}"
+            auto_job_id = f"auto-3m-{dt.datetime.now():%Y%m%d%H%M%S%f}"
             t = threading.Thread(
                 target=sync_manager.run_backfill_job,
                 args=(auto_job_id, uids_to_sync, dates),
@@ -224,12 +221,18 @@ def update_csv_action(auto_sync_3m: bool = Query(True, description="是否自动
             )
             t.start()
 
-    if new_uids:
-        msg = f"更新成功！发现 {len(new_uids)} 位新增客户，已自动启动近 3 个月与近 30 天数据拉取落档 (任务ID: {auto_job_id})。"
-    elif uids_to_sync:
-        msg = f"更新完成：共扫描 {total_uids} 位客户，自动为 {len(uids_to_sync)} 位客户补齐近 3 个月与近 30 天数据 (任务ID: {auto_job_id})。"
+    if auto_job_id:
+        if new_uids:
+            msg = f"更新成功！发现 {len(new_uids)} 位新增客户，已自动启动近 3 个月与近 30 天数据拉取落档 (任务ID: {auto_job_id})。"
+        else:
+            msg = f"更新完成：共扫描 {total_uids} 位客户，自动为 {len(uids_to_sync)} 位客户补齐近 3 个月与近 30 天数据 (任务ID: {auto_job_id})。"
     else:
-        msg = f"更新完成：共扫描 {total_uids} 位客户，客户档案已是最新，近 3 个月与近 30 天数据已全部落档。"
+        if new_uids:
+            msg = f"更新成功！发现 {len(new_uids)} 位新增客户，客户档案已入库。（若需拉取交易额与佣金指标，请在 .env 配置只读 API Key）"
+        elif uids_to_sync and not cli:
+            msg = f"扫描完成：共 {total_uids} 位客户档案。（提示：未配置 .env API 凭证，暂未启动 SAPI 数据回补）"
+        else:
+            msg = f"更新完成：共扫描 {total_uids} 位客户，客户档案已是最新，近 3 个月与近 30 天数据已全部落档。"
 
     return {
         "status": "success",
@@ -293,7 +296,7 @@ async def upload_csv_file(file: UploadFile = File(...)):
             (curr_7_s, curr_7_e, False),
             (prev_7_s, prev_7_e, False),
         ]
-        auto_job_id = f"auto-upload-{dt.datetime.now():%Y%m%d%H%M%S}"
+        auto_job_id = f"auto-upload-{dt.datetime.now():%Y%m%d%H%M%S%f}"
         t = threading.Thread(
             target=sync_manager.run_backfill_job,
             args=(auto_job_id, uids_to_sync, dates),
@@ -302,7 +305,10 @@ async def upload_csv_file(file: UploadFile = File(...)):
         )
         t.start()
 
-    msg = f"上传成功！已解析 {safe_name}：覆盖 {total_uids} 个 UID（新增 {len(new_uids)} 人），已自动启动数据同步。"
+    if auto_job_id:
+        msg = f"上传成功！已解析 {safe_name}：覆盖 {total_uids} 个 UID（新增 {len(new_uids)} 人），已自动启动数据同步 (任务ID: {auto_job_id})。"
+    else:
+        msg = f"上传成功！已解析 {safe_name}：覆盖 {total_uids} 个 UID（新增 {len(new_uids)} 人）。（若需拉取交易额与佣金指标，请在 .env 配置只读 API Key）"
     return {
         "status": "success",
         "file_name": safe_name,
