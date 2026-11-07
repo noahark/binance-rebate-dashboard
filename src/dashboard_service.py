@@ -97,7 +97,7 @@ class DashboardService:
 
         # Fetch current period customer metrics
         cur.execute("""
-            SELECT user_id, commission, trade_vol, status
+            SELECT user_id, commission, trade_vol, status, normalization_reason
             FROM customer_metrics
             WHERE start_date = ? AND end_date = ? AND source = 'sapi'
         """, (curr_start, curr_end))
@@ -105,14 +105,47 @@ class DashboardService:
 
         # Fetch previous period customer metrics
         cur.execute("""
-            SELECT user_id, commission, trade_vol, status
+            SELECT user_id, commission, trade_vol, status, normalization_reason
             FROM customer_metrics
             WHERE start_date = ? AND end_date = ? AND source = 'sapi'
         """, (prev_start, prev_end))
         prev_rows = cur.fetchall()
 
-        curr_map = {r["user_id"]: r for r in curr_rows}
-        prev_map = {r["user_id"]: r for r in prev_rows}
+        curr_map = {r["user_id"]: r for r in curr_rows if metric_is_complete(r)}
+        prev_map = {r["user_id"]: r for r in prev_rows if metric_is_complete(r)}
+
+        def add_complete_daily_totals(metric_map, start_date, end_date):
+            daily_totals = {}
+            cur.execute("""
+                SELECT user_id, start_date, commission, trade_vol
+                FROM customer_metrics
+                WHERE is_single_day = 1 AND source = 'sapi'
+                  AND status IN ('success', 'empty_zero')
+                  AND start_date >= ? AND start_date <= ?
+            """, (start_date, end_date))
+            for row in cur.fetchall():
+                comm = to_decimal(row["commission"])
+                vol = to_decimal(row["trade_vol"])
+                if comm is None or vol is None:
+                    continue
+                uid = row["user_id"]
+                if uid not in daily_totals:
+                    daily_totals[uid] = {"dates": set(), "commission": Decimal("0"), "trade_vol": Decimal("0")}
+                daily_totals[uid]["dates"].add(row["start_date"])
+                daily_totals[uid]["commission"] += comm
+                daily_totals[uid]["trade_vol"] += vol
+
+            for uid, totals in daily_totals.items():
+                if uid not in metric_map and len(totals["dates"]) == days:
+                    metric_map[uid] = {
+                        "user_id": uid,
+                        "commission": format_decimal(totals["commission"], 4),
+                        "trade_vol": format_decimal(totals["trade_vol"], 4),
+                        "status": "success",
+                    }
+
+        add_complete_daily_totals(curr_map, curr_start, curr_end)
+        add_complete_daily_totals(prev_map, prev_start, prev_end)
 
         synced_uids = set(curr_map.keys())
         active_uids = set()
@@ -217,9 +250,18 @@ class DashboardService:
         synced_curr_dates = set()
         synced_prev_dates = set()
 
-        # Query daily metrics for included UIDs
-        if included_uids:
-            uid_placeholders = ",".join("?" for _ in included_uids)
+        # Daily trends remain available even when period aggregates have not been synced.
+        cur.execute("""
+            SELECT DISTINCT user_id
+            FROM customer_metrics
+            WHERE is_single_day = 1 AND source = 'sapi'
+              AND ((start_date >= ? AND start_date <= ?) OR (start_date >= ? AND start_date <= ?))
+        """, (curr_start, curr_end, prev_start, prev_end))
+        excluded_uid_set = set(excluded_uids)
+        trend_uids = [r[0] for r in cur.fetchall() if r[0] not in excluded_uid_set]
+
+        if trend_uids:
+            uid_placeholders = ",".join("?" for _ in trend_uids)
             # Current daily metrics
             cur.execute(f"""
                 SELECT start_date, SUM(CAST(commission AS REAL)), SUM(CAST(trade_vol AS REAL))
@@ -227,7 +269,7 @@ class DashboardService:
                 WHERE is_single_day = 1 AND user_id IN ({uid_placeholders})
                   AND start_date >= ? AND start_date <= ? AND source = 'sapi'
                 GROUP BY start_date
-            """, (*included_uids, curr_start, curr_end))
+            """, (*trend_uids, curr_start, curr_end))
             for row in cur.fetchall():
                 d_str = row[0]
                 if d_str in curr_dates:
@@ -243,7 +285,7 @@ class DashboardService:
                 WHERE is_single_day = 1 AND user_id IN ({uid_placeholders})
                   AND start_date >= ? AND start_date <= ? AND source = 'sapi'
                 GROUP BY start_date
-            """, (*included_uids, prev_start, prev_end))
+            """, (*trend_uids, prev_start, prev_end))
             for row in cur.fetchall():
                 d_str = row[0]
                 if d_str in prev_dates:

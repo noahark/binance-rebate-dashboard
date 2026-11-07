@@ -868,6 +868,84 @@ class TestDashboardSuite(unittest.TestCase):
         self.assertEqual(ins["period"]["current_start"], expected_curr_start)
         self.assertEqual(ins["period"]["current_end"], expected_curr_end)
 
+    def test_15_overview_trend_without_period_aggregates(self):
+        """Daily trends must not depend on period aggregate records."""
+        uid = "trend-only-uid"
+        ref_end = "2030-01-31"
+        curr_start, curr_end, _, _ = compute_period_bounds(180, ref_end)
+        conn = get_db()
+        try:
+            conn.execute("""
+                INSERT INTO customers (user_id, created_at, updated_at)
+                VALUES (?, '2030-01-01', '2030-01-01')
+            """, (uid,))
+            conn.executemany("""
+                INSERT INTO customer_metrics (
+                    user_id, start_date, end_date, is_single_day,
+                    trade_vol, commission, source, status, fetched_at
+                ) VALUES (?, ?, ?, 1, ?, ?, 'sapi', 'success', '2030-01-31')
+            """, [
+                (uid, curr_start, curr_start, "10.0", "1.25"),
+                (uid, curr_end, curr_end, "20.0", "2.75"),
+            ])
+            conn.commit()
+
+            overview = dashboard_service.get_overview(days=180, reference_end=ref_end)
+            trends = overview["trends"]
+            self.assertTrue(trends["has_daily_data"])
+            self.assertEqual(trends["synced_days_count"], 2)
+            self.assertEqual(trends["current_commission"][0], 1.25)
+            self.assertEqual(trends["current_commission"][-1], 2.75)
+            self.assertEqual(trends["current_volume"][0], 10.0)
+            self.assertEqual(trends["current_volume"][-1], 20.0)
+        finally:
+            conn.execute("DELETE FROM customer_metrics WHERE user_id = ?", (uid,))
+            conn.execute("DELETE FROM customers WHERE user_id = ?", (uid,))
+            conn.commit()
+            conn.close()
+
+    def test_16_overview_metrics_from_complete_daily_records(self):
+        """Complete daily records fill missing period totals without counting partial periods."""
+        uid = "daily-total-uid"
+        ref_end = "2031-01-31"
+        curr_start, curr_end, prev_start, prev_end = compute_period_bounds(180, ref_end)
+        conn = get_db()
+        try:
+            conn.execute("""
+                INSERT INTO customers (user_id, created_at, updated_at)
+                VALUES (?, '2031-01-01', '2031-01-01')
+            """, (uid,))
+            rows = []
+            for start_date, commission, volume in (
+                (curr_start, "1.25", "10.0"),
+                (prev_start, "0.50", "5.0"),
+            ):
+                start = dt.datetime.strptime(start_date, "%Y-%m-%d").date()
+                for offset in range(180):
+                    day = (start + dt.timedelta(days=offset)).isoformat()
+                    rows.append((uid, day, day, volume, commission))
+            conn.executemany("""
+                INSERT INTO customer_metrics (
+                    user_id, start_date, end_date, is_single_day,
+                    trade_vol, commission, source, status, fetched_at
+                ) VALUES (?, ?, ?, 1, ?, ?, 'sapi', 'success', '2031-01-31')
+            """, rows)
+            conn.commit()
+
+            overview = dashboard_service.get_overview(days=180, reference_end=ref_end)
+            metrics = overview["metrics"]
+            self.assertEqual(metrics["total_commission"], "225.00")
+            self.assertEqual(metrics["total_volume"], "1800.00")
+            self.assertEqual(metrics["prev_commission"], "90.00")
+            self.assertEqual(metrics["prev_volume"], "900.00")
+            self.assertEqual(metrics["delta_pct"], 150.0)
+            self.assertEqual(overview["coverage"]["synced_customers"], 1)
+        finally:
+            conn.execute("DELETE FROM customer_metrics WHERE user_id = ?", (uid,))
+            conn.execute("DELETE FROM customers WHERE user_id = ?", (uid,))
+            conn.commit()
+            conn.close()
+
 
 if __name__ == "__main__":
     unittest.main()
